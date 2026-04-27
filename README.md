@@ -16,7 +16,7 @@
 | F-08 | 諸掛請求書から許可通知書ページのみ抽出 | ✅ |
 | F-09 | 一括納付明細書順に許可通知書を並び替えてPDF生成 | ✅ |
 | F-10 | 仕入書番号(下5桁)対応表生成 | ✅ |
-| F-11 | OCRによる延納マルチ納付書解析 | ⏳(画像PDFの場合は次フェーズ) |
+| F-11 | OCRによる延納マルチ納付書解析(Tesseract jpn+eng) | ✅ |
 | F-12 | 1社単位の処理 | ✅(分類で代理人ごとに自動分割) |
 
 ## 動作環境
@@ -29,6 +29,18 @@
 ```bash
 pip install -r app/backend/requirements.txt
 ```
+
+OCR(F-11)を利用する場合は、システムに Tesseract と日本語データを別途インストールしてください:
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install tesseract-ocr tesseract-ocr-jpn tesseract-ocr-jpn-vert
+
+# macOS (Homebrew)
+brew install tesseract tesseract-lang
+```
+
+Tesseract が見つからない場合、システムは OCR をスキップして警告を出すだけで、その他の機能は引き続き動作します。
 
 ## 起動
 

@@ -6,6 +6,8 @@ from typing import List
 
 import fitz
 
+from .ocr import needs_ocr, ocr_page
+
 
 PDF_KIND_BULK_DETAIL = "一括納付用明細書情報"
 PDF_KIND_PAYMENT_NOTICE = "納付番号通知情報"
@@ -61,15 +63,17 @@ def _overall_kind(filename: str, kinds: List[str]) -> str:
     has_detail = PDF_KIND_BULK_DETAIL in kinds
     has_cover = PDF_KIND_COVER_LETTER in kinds
 
-    if "延納マルチ" in name:
-        return PDF_KIND_DEFERRED_MULTI
-
+    # Content-first classification: if (post-OCR) pages contain bundle
+    # content, treat the document as a bundle even when the filename says
+    # 「延納マルチ」 (which only describes the SOURCE format).
     if has_invoice or "諸掛請求書" in name:
         return PDF_KIND_FREIGHT_INVOICE
 
-    # 案内状+納付通知+明細が混在する一括納付明細書PDF
     if has_payment or has_detail or has_cover:
         return PDF_KIND_BULK_BUNDLE
+
+    if "延納マルチ" in name:
+        return PDF_KIND_DEFERRED_MULTI
 
     if has_permit or "輸入許可通知書" in name or "輸入許可書" in name:
         return PDF_KIND_PERMIT
@@ -78,17 +82,24 @@ def _overall_kind(filename: str, kinds: List[str]) -> str:
     if "一括納付明細書" in name or "一括納付" in name:
         return PDF_KIND_BULK_BUNDLE
     if name_upper.endswith(".PDF") and any(c.isdigit() for c in name) and len(name) >= 11:
-        # 数字羅列ファイル名の場合は一括納付関連の可能性が高い
         return PDF_KIND_BULK_BUNDLE
     return PDF_KIND_UNKNOWN
 
 
-def classify_pdf(filename: str, file_path: str) -> ClassifiedDocument:
-    """Open *file_path* with PyMuPDF and classify pages and overall document."""
+def classify_pdf(filename: str, file_path: str, *, enable_ocr: bool = True) -> ClassifiedDocument:
+    """Open *file_path* with PyMuPDF and classify pages and overall document.
+
+    If ``enable_ocr`` is True (default) and a page has no embedded text,
+    Tesseract is invoked to extract text from the rasterised page image.
+    """
     doc = fitz.open(file_path)
     pages: List[PageClassification] = []
     for i, page in enumerate(doc):
         text = page.get_text() or ""
+        if enable_ocr and needs_ocr(page):
+            ocr_text = ocr_page(page)
+            if ocr_text:
+                text = ocr_text
         pages.append(PageClassification(page_index=i, kind=_page_kind(text), text=text))
     page_count = len(doc)
     doc.close()

@@ -59,8 +59,13 @@ def _company_for_agent(agent_code: Optional[str]) -> Tuple[str, str]:
 def process_classified_documents(docs: List[ClassifiedDocument]) -> MonthlyChecklist:
     """Build a MonthlyChecklist from already-classified documents."""
 
+    # We key by payment_number when available because it is more OCR-stable
+    # than the 一括納付書番号 (which can have one digit corrupted under OCR).
     payment_notices: Dict[Tuple[str, str], PaymentDetail] = {}
     bulk_details: Dict[Tuple[str, str], dict] = {}
+    # Secondary index: payment_number -> bulk_payment_number, populated as
+    # we go so we can reconcile OCR-noisy BPNs.
+    payment_no_to_bpn: Dict[str, str] = {}
     bulk_payment_order: List[str] = []
     cover_pages_by_kind: Dict[str, int] = defaultdict(int)
     permits: List[ImportPermit] = []
@@ -94,8 +99,10 @@ def process_classified_documents(docs: List[ClassifiedDocument]) -> MonthlyCheck
                     if pn:
                         key = (pn.bulk_payment_number, pn.subject_name)
                         payment_notices[key] = pn
-                        if pn.bulk_payment_number not in bulk_payment_order:
-                            bulk_payment_order.append(pn.bulk_payment_number)
+                        if pn.payment_number:
+                            payment_no_to_bpn.setdefault(
+                                pn.payment_number, pn.bulk_payment_number
+                            )
                         if pn.deadline:
                             deadline = pn.deadline
                 elif page.kind == PDF_KIND_BULK_DETAIL:
@@ -107,14 +114,41 @@ def process_classified_documents(docs: List[ClassifiedDocument]) -> MonthlyCheck
                             "declared_total": dec_total,
                             "declared_count": dec_count,
                             "payment_number": payment_no,
+                            "bulk_payment_number": bpn,
                         }
-                        if bpn not in bulk_payment_order:
-                            bulk_payment_order.append(bpn)
+                        if payment_no:
+                            payment_no_to_bpn.setdefault(payment_no, bpn)
                 # cover-pages count for the company-level tally is computed
                 # later when we have agent_code per page.
 
         if doc.overall_kind in (PDF_KIND_PERMIT, PDF_KIND_FREIGHT_INVOICE):
             permits.extend(_extract_permits_from_doc(doc))
+
+    # Reconcile OCR-noisy bulk_payment_number values: when a PN's bpn does
+    # not appear in any BD record but the same payment_number does (and
+    # vice-versa), prefer the BD's bpn since it tends to be more reliable.
+    bd_bpns = {bpn for bpn, _ in bulk_details.keys()}
+    for pn in list(payment_notices.values()):
+        if pn.bulk_payment_number in bd_bpns or not pn.payment_number:
+            continue
+        for bd_key, bd in bulk_details.items():
+            if bd.get("payment_number") == pn.payment_number:
+                pn.bulk_payment_number = bd_key[0]
+                break
+
+    # Re-key payment_notices after reconciliation.
+    payment_notices = {
+        (pn.bulk_payment_number, pn.subject_name): pn
+        for pn in payment_notices.values()
+    }
+
+    # Cover-letter / payment-notice order should reflect the reconciled BPNs.
+    for pn in payment_notices.values():
+        if pn.bulk_payment_number not in bulk_payment_order:
+            bulk_payment_order.append(pn.bulk_payment_number)
+    for (bpn, _) in bulk_details.keys():
+        if bpn not in bulk_payment_order:
+            bulk_payment_order.append(bpn)
 
     # Merge payment notices and bulk details into PaymentDetail objects
     merged: Dict[Tuple[str, str], PaymentDetail] = {}

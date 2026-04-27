@@ -17,10 +17,12 @@ ELEVEN_DIGITS_RE = re.compile(r"(?<!\d)\d{11}(?!\d)")
 
 
 def _normalize_amount(token: str) -> Optional[int]:
-    """Convert "¥1,859,800" or "1,859,800" -> 1859800."""
+    """Convert "¥1,859,800" / "¥1, 200" (OCR) / "1,859,800" -> 1859800."""
     if not token:
         return None
-    cleaned = token.replace(",", "").replace("¥", "").replace("￥", "").replace("\\", "").strip()
+    # Drop currency markers and any whitespace; OCR sometimes inserts spaces
+    # around commas (e.g. "1, 200").
+    cleaned = re.sub(r"[¥￥\\平,\s]", "", token)
     if not cleaned.isdigit():
         return None
     return int(cleaned)
@@ -71,17 +73,29 @@ def _find_bulk_payment_number(text: str, lines: List[str]) -> Optional[str]:
     BOTH 「括」 and 「番」 and pick the trailing 11-digit number on the same
     line; if that fails we look at the next ~3 lines.
     """
+    # Prefer lines that include the more-specific 「納付書」 substring to avoid
+    # matching the document title 「納付番号通知情報 (一括)」.
+    label_candidates = []
     for i, ln in enumerate(lines):
-        if "括" in ln and "番" in ln:
-            # try same line first
-            m = ELEVEN_DIGITS_RE.search(ln.replace(" ", ""))
-            if m:
-                return m.group(0)
-            # then next 3 lines combined
-            merged = "".join(lines[i + 1: i + 4])
-            m2 = ELEVEN_DIGITS_RE.search(merged.replace(" ", ""))
-            if m2:
-                return m2.group(0)
+        if "納付書" in ln and "番" in ln:
+            label_candidates.append(i)
+    # Otherwise fall back to any line with 「括」 + 「番」, but skip obvious
+    # title lines.
+    if not label_candidates:
+        for i, ln in enumerate(lines):
+            if "括" in ln and "番" in ln and "通知情報" not in ln and "包括納期限" not in ln:
+                label_candidates.append(i)
+
+    for i in label_candidates:
+        ln = lines[i]
+        m = ELEVEN_DIGITS_RE.search(ln.replace(" ", ""))
+        if m:
+            return m.group(0)
+        merged = "".join(lines[i + 1: i + 4])
+        m2 = ELEVEN_DIGITS_RE.search(merged.replace(" ", ""))
+        if m2:
+            return m2.group(0)
+
     # OCR fallback: header text BEFORE 「本税調定日」 (or whole text on
     # 納付番号通知 pages) contains exactly two 11-digit numbers - the
     # 納付番号 (starts with 0) and the 一括納付書番号. Prefer the latter.
@@ -128,25 +142,23 @@ def parse_payment_notice(text: str) -> Optional[PaymentDetail]:
     # Look for any line that contains 「括」 + 「番」 and pick the trailing 11-digit number.
     bulk_payment_number = _find_bulk_payment_number(text, lines)
 
-    # 00120 -> 納付番号 -> 確認番号
-    code_idx = None
-    for i, ln in enumerate(lines):
-        if ln == "00120":
-            code_idx = i
+    # 納付番号 (11 digits, leading 0). The first 11-digit token starting
+    # with '0' that is NOT the bulk_payment_number is the 納付番号.
+    for tok in ELEVEN_DIGITS_RE.findall(text):
+        if tok == bulk_payment_number:
+            continue
+        if tok.startswith("0"):
+            payment_number = tok
             break
-    if code_idx is not None:
-        # next two non-empty numeric tokens
-        following_numbers = []
-        for ln in lines[code_idx + 1: code_idx + 12]:
-            digits = ln.strip()
-            if digits.isdigit():
-                following_numbers.append(digits)
-            if len(following_numbers) >= 2:
-                break
-        if following_numbers:
-            payment_number = following_numbers[0]
-        if len(following_numbers) >= 2:
-            confirmation_number = following_numbers[1]
+
+    # 確認番号 (6 digits, follows the 納付番号 in document order).
+    if payment_number:
+        idx = text.find(payment_number)
+        if idx >= 0:
+            tail = text[idx + len(payment_number):]
+            m_conf = re.search(r"(?<!\d)(\d{6})(?!\d)", tail)
+            if m_conf:
+                confirmation_number = m_conf.group(1)
 
     # 申告官署 (税関名 + 税関官署名). Spec example: 大阪 関西空港
     # Keywords list to scan
@@ -183,16 +195,16 @@ def parse_payment_notice(text: str) -> Optional[PaymentDetail]:
     elif "関税" in text:
         subject_name = "関税"
 
-    # 税額合計 - find the line "税額合計" then the next ¥amount
-    for i, ln in enumerate(lines):
-        if "税額合計" in ln:
-            # search same line + next 3 lines
-            chunk = " ".join(lines[i:i + 4])
-            m3 = re.search(r"[¥￥\\平]\s*([0-9,]+)", chunk)
-            if m3:
-                total_amount = _normalize_amount(m3.group(1))
-                if total_amount is not None:
-                    break
+    # 税額合計 - take the largest yen-amount on the page. In both the
+    # digital and OCR'd 納付番号通知 layouts the section total equals the
+    # 受入科目別 line total when there is one tax line, and is the largest
+    # value otherwise. OCR noise sometimes truncates numbers (e.g. "\2."
+    # for "¥2,064,300"), so we ignore obviously-truncated single-digit hits.
+    yen_matches = re.findall(r"[¥￥\\平][\t ]*([0-9](?:[0-9,]|[ \t](?=\d))*)", text)
+    amounts = [_normalize_amount(m) for m in yen_matches]
+    amounts = [a for a in amounts if a is not None and a > 0]
+    if amounts:
+        total_amount = max(amounts)
 
     if not bulk_payment_number or not payment_number or total_amount is None:
         # Not a parseable page; skip.
@@ -232,7 +244,7 @@ def parse_bulk_detail(text: str) -> Optional[Tuple[str, str, Optional[int], Opti
     # 合計額: the first yen-amount in the page is always the section total
     # (¥1,859,800 for the 9-row example; ¥300 for the 1-row example).
     declared_total: Optional[int] = None
-    m_first = re.search(r"[¥￥\\平]\s*([0-9,]+)", text)
+    m_first = re.search(r"[¥￥\\平][\t ]*([0-9](?:[0-9,]|[ \t](?=\d))*)", text)
     if m_first:
         declared_total = _normalize_amount(m_first.group(1))
 
@@ -321,8 +333,8 @@ def _parse_detail_items_smart(
     tail_declarations = ELEVEN_DIGITS_RE.findall(tail_text)
 
     # Yen amounts
-    all_amounts = re.findall(r"[¥￥\\平]\s*([0-9,]+)", text)
-    tail_amounts = re.findall(r"[¥￥\\平]\s*([0-9,]+)", tail_text)
+    all_amounts = re.findall(r"[¥￥\\平][\t ]*([0-9](?:[0-9,]|[ \t](?=\d))*)", text)
+    tail_amounts = re.findall(r"[¥￥\\平][\t ]*([0-9](?:[0-9,]|[ \t](?=\d))*)", tail_text)
 
     # Filter out the FIRST amount equal to declared_total (it's the section
     # total; line-item amounts come after even if they happen to repeat the
