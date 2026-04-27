@@ -1,0 +1,172 @@
+:root {
+  --c-primary: #2255aa;
+  --c-primary-hover: #163a7c;
+  --c-bg: #f4f6fb;
+  --c-card: #ffffff;
+  --c-border: #d8dde6;
+  --c-text: #1f2733;
+  --c-muted: #5e6a7d;
+  --c-success: #1f7a3b;
+  --c-danger: #b71d1d;
+  --c-warning: #b97a00;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+  color: var(--c-text);
+  background: var(--c-bg);
+  line-height: 1.6;
+}
+
+.topbar {
+  background: var(--c-primary);
+  color: #fff;
+  padding: 1rem 1.5rem;
+}
+.topbar h1 { margin: 0; font-size: 1.4rem; }
+.topbar .sub { margin: 0.2rem 0 0; opacity: 0.85; font-size: 0.85rem; }
+footer.topbar { background: #2c3a55; font-size: 0.8rem; }
+
+.container {
+  max-width: 1100px;
+  margin: 1.5rem auto;
+  padding: 0 1rem 3rem;
+}
+
+.card {
+  background: var(--c-card);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 2px rgba(20, 30, 60, 0.05);
+}
+.card h2 { margin-top: 0; }
+.card h3 { margin-top: 1.5rem; border-left: 4px solid var(--c-primary); padding-left: 0.6rem; }
+.hidden { display: none !important; }
+
+.hint { color: var(--c-muted); }
+
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2.5rem;
+  border: 2px dashed var(--c-border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  text-align: center;
+}
+.dropzone:hover, .dropzone.dragover {
+  border-color: var(--c-primary);
+  background: #f0f4ff;
+}
+.dz-icon { font-size: 2.4rem; }
+.dz-text em { color: var(--c-primary); font-style: normal; text-decoration: underline; }
+
+.file-list {
+  margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.file-list .file-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.8rem;
+  background: #f8fafd;
+  border: 1px solid var(--c-border);
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+.file-row .badge {
+  background: var(--c-primary);
+  color: #fff;
+  padding: 0.1rem 0.5rem;
+  border-radius: 99px;
+  font-size: 0.75rem;
+  margin-right: 0.5rem;
+}
+.file-row .remove {
+  border: 0; background: transparent; color: var(--c-danger);
+  cursor: pointer; font-weight: bold;
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+button {
+  background: var(--c-primary);
+  color: #fff;
+  border: 0;
+  padding: 0.6rem 1.1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+button:hover:not(:disabled) { background: var(--c-primary-hover); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.secondary { background: #f0f3f8; color: var(--c-text); border: 1px solid var(--c-border); }
+button.secondary:hover:not(:disabled) { background: #e7ebf2; }
+
+.status { margin-top: 0.8rem; min-height: 1.6em; color: var(--c-muted); }
+.status.error { color: var(--c-danger); font-weight: 600; }
+.status.success { color: var(--c-success); font-weight: 600; }
+
+.meta {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  background: #f4f6fb;
+  padding: 0.8rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+}
+.meta strong { color: var(--c-primary); }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0 1rem;
+  font-size: 0.9rem;
+}
+th, td {
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--c-border);
+  text-align: left;
+  vertical-align: top;
+}
+th { background: #f0f3f8; font-weight: 600; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr.warn { background: #fff7e6; }
+
+.copy-row { display: flex; align-items: center; gap: 0.6rem; margin: 0.5rem 0; }
+.copy-btn { background: #e7eef8; color: var(--c-primary); border: 1px solid var(--c-border); }
+.copy-btn:hover:not(:disabled) { background: #d6e1f5; }
+.copy-hint { color: var(--c-muted); font-size: 0.85rem; }
+
+.validation-ok { color: var(--c-success); font-weight: 600; }
+.validation-ng { color: var(--c-danger); font-weight: 600; }
+
+.invoice-block {
+  border: 1px solid var(--c-border);
+  border-radius: 4px;
+  padding: 0.8rem;
+  margin: 0.6rem 0;
+  background: #fafbfd;
+}
+.invoice-block h4 { margin: 0 0 0.4rem; font-size: 0.95rem; color: var(--c-primary); }
+
+#warning-list li { color: var(--c-warning); }

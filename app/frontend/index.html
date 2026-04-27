@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>一括納付明細書チェックリスト作成システム</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>一括納付明細書チェックリスト</h1>
+    <p class="sub">気高電機株式会社 経理業務支援システム v1.0</p>
+  </header>
+
+  <main class="container">
+    <!-- Step 1: Upload -->
+    <section id="upload-section" class="card">
+      <h2>1. PDFアップロード</h2>
+      <p class="hint">納付番号通知情報、一括納付用明細書情報、書類送付案内状、輸入許可通知書、諸掛請求書、延納マルチ納付書のPDFをまとめてアップロードしてください。</p>
+      <label class="dropzone" id="dropzone">
+        <input id="file-input" type="file" accept="application/pdf" multiple hidden />
+        <span class="dz-icon">📂</span>
+        <span class="dz-text">ここにPDFをドラッグ&amp;ドロップ または <em>クリックして選択</em></span>
+      </label>
+      <div id="file-list" class="file-list"></div>
+      <div class="actions">
+        <button id="process-btn" disabled>処理を開始する</button>
+        <button id="clear-btn" class="secondary" disabled>リセット</button>
+      </div>
+      <div id="status" class="status"></div>
+    </section>
+
+    <!-- Step 2: Result -->
+    <section id="result-section" class="card hidden">
+      <h2>2. チェックリスト</h2>
+      <div id="meta" class="meta"></div>
+
+      <h3>各会社PDF枚数確認</h3>
+      <div class="copy-row">
+        <button class="copy-btn" data-section="company_page_counts">📋 Excelにコピー</button>
+        <span class="copy-hint">行18以降に貼り付け</span>
+      </div>
+      <div id="company-counts"></div>
+
+      <h3>各会社詳細情報</h3>
+      <div class="copy-row">
+        <button class="copy-btn" data-section="company_details">📋 Excelにコピー</button>
+        <span class="copy-hint">行25以降に貼り付け</span>
+      </div>
+      <div id="company-details"></div>
+
+      <h3>突合チェック結果</h3>
+      <div id="validations"></div>
+
+      <h3>仕入書番号対応表</h3>
+      <div id="invoice-mappings"></div>
+
+      <h3>添付PDFファイル名</h3>
+      <div class="copy-row">
+        <button class="copy-btn" data-section="attached_files">📋 Excelにコピー</button>
+        <span class="copy-hint">行12以降に貼り付け</span>
+      </div>
+      <div id="attached-files"></div>
+
+      <div class="actions">
+        <button id="download-md">Markdown ダウンロード</button>
+        <button id="download-tsv">全体TSV ダウンロード</button>
+        <button id="download-permits">許可通知書PDF ダウンロード</button>
+        <button id="reset-btn" class="secondary">最初からやり直す</button>
+      </div>
+    </section>
+
+    <section class="card hidden" id="warning-section">
+      <h2>警告</h2>
+      <ul id="warning-list"></ul>
+    </section>
+  </main>
+
+  <footer class="topbar">
+    <small>処理データはセッション中のみサーバーに保持され、24時間後または明示的なリセット時に削除されます。</small>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
